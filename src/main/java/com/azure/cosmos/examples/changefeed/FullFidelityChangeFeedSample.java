@@ -9,6 +9,7 @@ import com.azure.cosmos.CosmosClient;
 import com.azure.cosmos.CosmosClientBuilder;
 import com.azure.cosmos.CosmosContainer;
 import com.azure.cosmos.CosmosDatabase;
+import com.azure.cosmos.examples.common.ItemWithMetaData;
 import com.azure.cosmos.implementation.guava25.collect.ArrayListMultimap;
 import com.azure.cosmos.models.ChangeFeedPolicy;
 import com.azure.cosmos.models.CosmosChangeFeedRequestOptions;
@@ -163,7 +164,7 @@ public class FullFidelityChangeFeedSample {
 
         while (!isFinished) {
             for (Integer i = 0; i < changeFeedRequestOptions.size(); i++) {
-                List<ObjectNode> results;
+                List<ItemWithMetaData> results;
 
                 CosmosChangeFeedRequestOptions effectiveOptions;
                 if (continuations.containsKey(i)) {
@@ -180,10 +181,9 @@ public class FullFidelityChangeFeedSample {
                 } else {
                     effectiveOptions = changeFeedRequestOptions.get(i);
                 }
-                effectiveOptions.fullFidelity();
                 final Integer index = i;
                 results = createdAsyncContainer
-                        .queryChangeFeed(effectiveOptions, ObjectNode.class)
+                        .queryChangeFeed(effectiveOptions, ItemWithMetaData.class)
                         // NOTE - in real app you would need delaying persisting the
                         // continuation until you retrieve the next one
                         .handle((r) -> continuations.put(index, r.getContinuationToken()))
@@ -204,8 +204,8 @@ public class FullFidelityChangeFeedSample {
                     break;
                 }
 
-                for (ObjectNode objectNode : results) {
-                    logger.info("doc: " + objectNode);
+                for (ItemWithMetaData doc : results) {
+                    logger.info("doc id:" + doc.getId());
                 }
 
                 if (results.size() == 0) {
