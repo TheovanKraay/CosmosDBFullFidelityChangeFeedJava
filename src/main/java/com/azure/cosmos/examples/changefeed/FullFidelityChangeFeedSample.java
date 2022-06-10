@@ -5,12 +5,7 @@ import com.azure.cosmos.ConsistencyLevel;
 import com.azure.cosmos.CosmosAsyncClient;
 import com.azure.cosmos.CosmosAsyncContainer;
 import com.azure.cosmos.CosmosAsyncDatabase;
-import com.azure.cosmos.CosmosClient;
 import com.azure.cosmos.CosmosClientBuilder;
-import com.azure.cosmos.CosmosContainer;
-import com.azure.cosmos.CosmosDatabase;
-import com.azure.cosmos.examples.common.ItemWithMetaData;
-import com.azure.cosmos.examples.common.Metadata;
 import com.azure.cosmos.implementation.guava25.collect.ArrayListMultimap;
 import com.azure.cosmos.models.ChangeFeedPolicy;
 import com.azure.cosmos.models.CosmosChangeFeedRequestOptions;
@@ -47,12 +42,9 @@ public class FullFidelityChangeFeedSample {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String PARTITION_KEY_FIELD_NAME = "mypk";
-    //public static CosmosClient client;
     public static CosmosAsyncClient clientAsync;
     private CosmosAsyncContainer createdAsyncContainer;
     private CosmosAsyncDatabase createdAsyncDatabase;
-    //private CosmosContainer createdContainer;
-    //private static CosmosDatabase createdDatabase;
     private final Multimap<String, ObjectNode> partitionKeyToDocuments = ArrayListMultimap.create();
 
     public static final String DATABASE_NAME = "db-tvktest";
@@ -162,7 +154,7 @@ public class FullFidelityChangeFeedSample {
                 null,
                 expectedEventCountAfterFirstSetOfUpdates, changeFeedMode);
 
-        // applying first set of updates
+        // applying second set of updates
         updateAction2.run();
 
         options = CosmosChangeFeedRequestOptions
@@ -404,16 +396,6 @@ public class FullFidelityChangeFeedSample {
         }
     }
 
-    // public CosmosClient getCosmosClient() {
-
-    //     return new CosmosClientBuilder()
-    //             .endpoint(SampleConfigurations.HOST)
-    //             .key(SampleConfigurations.MASTER_KEY)
-    //             .contentResponseOnWriteEnabled(true)
-    //             .consistencyLevel(ConsistencyLevel.SESSION)
-    //             .buildClient();
-    // }
-
     public CosmosAsyncClient getCosmosAsyncClient() {
 
         return new CosmosClientBuilder()
@@ -446,9 +428,7 @@ public class FullFidelityChangeFeedSample {
 
         Mono<CosmosContainerResponse> containerResponse = database.createContainerIfNotExists(containerSettings,
                 throughputProperties);
-        //this.createdDatabase = clientAsync2.getDatabase(database.getId());
         this.createdAsyncDatabase = clientAsync.getDatabase(database.getId());
-        //this.createdContainer = clientAsync2.getDatabase(DATABASE_NAME).getContainer(COLLECTION_NAME);
         this.createdAsyncContainer = clientAsync.getDatabase(DATABASE_NAME).getContainer(COLLECTION_NAME);
         return containerResponse.block().getProperties();
     }
@@ -461,8 +441,6 @@ public class FullFidelityChangeFeedSample {
         if (onInitialization != null) {
             containerProperties = onInitialization.apply(containerProperties);
         }
-
-        //this.createdContainer = createdDatabase.getContainer(COLLECTION_NAME);
         this.createdAsyncContainer = createdAsyncDatabase.getContainer(COLLECTION_NAME);
     }
 
