@@ -47,7 +47,7 @@ public class FullFidelityChangeFeedSample {
     private CosmosAsyncDatabase createdAsyncDatabase;
     private final Multimap<String, ObjectNode> partitionKeyToDocuments = ArrayListMultimap.create();
 
-    public static final String DATABASE_NAME = "db-tvktest";
+    public static final String DATABASE_NAME = "db";
     public static final String COLLECTION_NAME = "ffcf";
     protected static Logger logger = LoggerFactory.getLogger(FullFidelityChangeFeedSample.class);
 
