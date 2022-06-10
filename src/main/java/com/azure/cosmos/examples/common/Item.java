@@ -8,7 +8,21 @@ public class Item {
     public String getId() {
         return id;
     }
+    public String getMypk() {
+        return mypk;
+    }
+    public String getProp() {
+        return prop;
+    }        
 
     public String id;
-    public String myPk;
+    public String mypk;
+    public String prop;
+    public String _rid;
+    public String _attachments;
+    public String _ts;
+    public String _lsn;
+    public String _etag;
+    public String _self;
+    public String someProperty;
 }

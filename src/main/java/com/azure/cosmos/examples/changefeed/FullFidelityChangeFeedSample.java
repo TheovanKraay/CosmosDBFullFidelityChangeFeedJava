@@ -10,6 +10,7 @@ import com.azure.cosmos.CosmosClientBuilder;
 import com.azure.cosmos.CosmosContainer;
 import com.azure.cosmos.CosmosDatabase;
 import com.azure.cosmos.examples.common.ItemWithMetaData;
+import com.azure.cosmos.examples.common.Metadata;
 import com.azure.cosmos.implementation.guava25.collect.ArrayListMultimap;
 import com.azure.cosmos.models.ChangeFeedPolicy;
 import com.azure.cosmos.models.CosmosChangeFeedRequestOptions;
@@ -21,6 +22,7 @@ import com.azure.cosmos.models.FeedRange;
 import com.azure.cosmos.models.PartitionKey;
 import com.azure.cosmos.models.ThroughputProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
@@ -37,6 +39,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 import java.util.UUID;
 import java.util.function.Function;
 
@@ -44,44 +47,73 @@ public class FullFidelityChangeFeedSample {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String PARTITION_KEY_FIELD_NAME = "mypk";
-    public static CosmosClient client;
+    //public static CosmosClient client;
     public static CosmosAsyncClient clientAsync;
     private CosmosAsyncContainer createdAsyncContainer;
     private CosmosAsyncDatabase createdAsyncDatabase;
-    private CosmosContainer createdContainer;
-    private static CosmosDatabase createdDatabase;
+    //private CosmosContainer createdContainer;
+    //private static CosmosDatabase createdDatabase;
     private final Multimap<String, ObjectNode> partitionKeyToDocuments = ArrayListMultimap.create();
 
-    public static final String DATABASE_NAME = "db";
+    public static final String DATABASE_NAME = "db-tvktest";
     public static final String COLLECTION_NAME = "ffcf";
     protected static Logger logger = LoggerFactory.getLogger(FullFidelityChangeFeedSample.class);
 
     public static void main(String[] args) {
-        logger.info("BEGIN Sample");
-        // FullFidelityChangeFeedSample demo = new FullFidelityChangeFeedSample();
-        client = FullFidelityChangeFeedSample.getCosmosClient();
-        clientAsync = FullFidelityChangeFeedSample.getCosmosAsyncClient();
+        logger.info("Cosmos DB Change Feed Demo");
+        
 
-        try {
-            logger.info("-->RUN asyncChangeFeed_fromNow_fullFidelity_forFullRange");
+        try (Scanner in = new Scanner(System.in)) {            
+            String changeFeedMode = "";
+            boolean exit = false;
+            while (!exit) {                
+                Thread.sleep(1000);
+                clearScreen();
+                System.out.println("Cosmos DB Change Feed Demo - Java SDK");
+                System.out.println("[f]   Full Fidelity Mode");
+                System.out.println("[i]   Incremental Mode");
+                System.out.println("[x]   Exit");
+                String input = in.nextLine();
+                if (input.equals("f")) {  
+                    FullFidelityChangeFeedSample demo = new FullFidelityChangeFeedSample();                 
+                    changeFeedMode = "Full Fidelity";
+                    demo.RunDemo(changeFeedMode);
+                }
+                if (input.equals("i")) {    
+                    FullFidelityChangeFeedSample demo = new FullFidelityChangeFeedSample();                
+                    changeFeedMode = "Incremental";
+                    demo.RunDemo(changeFeedMode);
+                }  
+                if (input.equals("x")) {
+                    exit = true;
+                }              
+            }
 
-            FullFidelityChangeFeedSample demo = new FullFidelityChangeFeedSample();
-            demo.asyncChangeFeed_fromNow_fullFidelity_forFullRange();
-
-            logger.info("-->DELETE sample's database: " + DATABASE_NAME);
-
-            deleteDatabase(createdDatabase);
-
-            Thread.sleep(500);
-
-        } catch (Exception e) {
+        }catch (Exception e) {
             e.printStackTrace();
-        }
+            logger.error(String.format("Cosmos demo failed with %s", e));
+        } 
 
         logger.info("END Sample");
     }
 
-    public void asyncChangeFeed_fromNow_fullFidelity_forFullRange() throws Exception {
+    public void RunDemo(String changeFeedMode) throws Exception{
+        //client = this.getCosmosClient();
+        clientAsync = this.getCosmosAsyncClient();
+        logger.info("--> Run Change Feed Demo in "+changeFeedMode+" mode");            
+        this.asyncChangeFeed_fromNow_fullFidelity_forFullRange(changeFeedMode);
+        this.CleanUp();
+        this.shutdown();
+        this.pressAnyKeyToContinue("Press any key to continue...");
+    }
+
+    public void CleanUp() throws InterruptedException{
+        logger.info("-->DELETE sample's database: " + DATABASE_NAME);
+        deleteDatabase(createdAsyncDatabase);
+        Thread.sleep(500);
+    }
+
+    public void asyncChangeFeed_fromNow_fullFidelity_forFullRange(String changeFeedMode) throws Exception {
         this.createContainer(
                 (cp) -> cp.setChangeFeedPolicy(ChangeFeedPolicy.createFullFidelityPolicy(Duration.ofMinutes(60))));
         insertDocuments(8, 15);
@@ -112,9 +144,12 @@ public class FullFidelityChangeFeedSample {
 
         CosmosChangeFeedRequestOptions options = CosmosChangeFeedRequestOptions
                 .createForProcessingFromNow(FeedRange.forFullRange());
-        options.fullFidelity();
+        if (changeFeedMode.equals("Full Fidelity")){
+            options.fullFidelity();
+        }        
+        
 
-        String continuation = drainAndValidateChangeFeedResults(options, null, expectedInitialEventCount);
+        String continuation = drainAndValidateChangeFeedResults(options, null, expectedInitialEventCount,changeFeedMode);
 
         // applying first set of updates
         updateAction1.run();
@@ -125,7 +160,7 @@ public class FullFidelityChangeFeedSample {
         continuation = drainAndValidateChangeFeedResults(
                 options,
                 null,
-                expectedEventCountAfterFirstSetOfUpdates);
+                expectedEventCountAfterFirstSetOfUpdates, changeFeedMode);
 
         // applying first set of updates
         updateAction2.run();
@@ -136,24 +171,24 @@ public class FullFidelityChangeFeedSample {
         drainAndValidateChangeFeedResults(
                 options,
                 null,
-                expectedEventCountAfterSecondSetOfUpdates);
+                expectedEventCountAfterSecondSetOfUpdates, changeFeedMode);
     }
 
     private String drainAndValidateChangeFeedResults(
             CosmosChangeFeedRequestOptions changeFeedRequestOptions,
             Function<CosmosChangeFeedRequestOptions, CosmosChangeFeedRequestOptions> onNewRequestOptions,
-            int expectedEventCount) {
+            int expectedEventCount, String changeFeedMode) throws JsonProcessingException, IllegalArgumentException {
 
         return drainAndValidateChangeFeedResults(
                 Arrays.asList(changeFeedRequestOptions),
                 onNewRequestOptions,
-                expectedEventCount).get(0);
+                expectedEventCount, changeFeedMode).get(0);
     }
 
     private Map<Integer, String> drainAndValidateChangeFeedResults(
             List<CosmosChangeFeedRequestOptions> changeFeedRequestOptions,
             Function<CosmosChangeFeedRequestOptions, CosmosChangeFeedRequestOptions> onNewRequestOptions,
-            int expectedTotalEventCount) {
+            int expectedTotalEventCount, String changeFeedMode) throws IllegalArgumentException {
 
         Map<Integer, String> continuations = new HashMap<>();
 
@@ -161,10 +196,16 @@ public class FullFidelityChangeFeedSample {
 
         boolean isFinished = false;
         int emptyResultCount = 0;
+        int iterationCount = 0;
 
         while (!isFinished) {
+            iterationCount ++;
+            if(changeFeedMode.equals("Incremental")){
+                logger.info("iterationCount:" + iterationCount);
+            }
+            
             for (Integer i = 0; i < changeFeedRequestOptions.size(); i++) {
-                List<ItemWithMetaData> results;
+                List<JsonNode> results;
 
                 CosmosChangeFeedRequestOptions effectiveOptions;
                 if (continuations.containsKey(i)) {
@@ -183,7 +224,7 @@ public class FullFidelityChangeFeedSample {
                 }
                 final Integer index = i;
                 results = createdAsyncContainer
-                        .queryChangeFeed(effectiveOptions, ItemWithMetaData.class)
+                        .queryChangeFeed(effectiveOptions, JsonNode.class)
                         // NOTE - in real app you would need delaying persisting the
                         // continuation until you retrieve the next one
                         .handle((r) -> continuations.put(index, r.getContinuationToken()))
@@ -199,21 +240,51 @@ public class FullFidelityChangeFeedSample {
                                 results.size()));
 
                 totalRetrievedEventCount += results.size();
-                if (totalRetrievedEventCount >= expectedTotalEventCount) {
-                    isFinished = true;
-                    break;
-                }
 
-                for (ItemWithMetaData doc : results) {
-                    logger.info("doc id:" + doc.getId());
+                logger.info("totalRetrievedEventCount: " + totalRetrievedEventCount);
+                logger.info("expectedTotalEventCount: " + expectedTotalEventCount);
+
+                if(changeFeedMode.equals("Full Fidelity")){
+                    for (JsonNode doc : results) {
+                        try {
+                            logger.info("****START ITEM DATA*****************");
+                            JsonNode metadata = doc.get("_metadata");
+                            String operationType = metadata.get("operationType").asText();                       
+                            logger.info("****OPERATION TYPE: " + operationType);
+                            if(operationType.equals("create")){
+                                logger.info("****DOC ID:" + doc.get("id").asText());
+                            }
+                            else if(operationType.equals("delete")){
+                                logger.info("****PREVIOUS IMAGE: " + metadata.get("previousImage"));
+                            }    
+                            // replace or update                    
+                            else{
+                                logger.info("****PREVIOUS IMAGE: " + metadata.get("previousImage"));
+                                logger.info("****NEW IMAGE: " + doc );
+                            } 
+                            logger.info("****END ITEM DATA*****************");                                           
+                            
+                        } catch (NullPointerException  e) {
+                            logger.info("exception: " + e);
+                        }    
+                    }
+                    if (totalRetrievedEventCount >= expectedTotalEventCount) {
+                        isFinished = true;
+                        break;
+                    }  
                 }
+                else{
+                    for (JsonNode doc : results) {
+                        logger.info("DOC (NO METADATA):" + doc);
+                    }
+                    if (iterationCount >= 3) {
+                        isFinished = true;
+                        break;
+                    }  
+                }              
 
                 if (results.size() == 0) {
                     emptyResultCount += 1;
-
-                    // if (emptyResultCount > 10){
-                    // isFinished = true;
-                    // }
                     logger.info(
                             String.format("No more docs....",
                                     totalRetrievedEventCount,
@@ -284,7 +355,7 @@ public class FullFidelityChangeFeedSample {
 
             for (int j = 0; j < documentCount; j++) {
                 ObjectNode docToBeDeleted = docs.stream().findFirst().get();
-                createdContainer.deleteItem(docToBeDeleted, null);
+                createdAsyncContainer.deleteItem(docToBeDeleted, null).block();
                 docs.remove(docToBeDeleted);
             }
         }
@@ -308,11 +379,11 @@ public class FullFidelityChangeFeedSample {
             for (int j = 0; j < documentCount; j++) {
                 ObjectNode docToBeUpdated = docs.stream().skip(j).findFirst().get();
                 docToBeUpdated.put("someProperty", UUID.randomUUID().toString());
-                createdContainer.replaceItem(
+                createdAsyncContainer.replaceItem(
                         docToBeUpdated,
                         docToBeUpdated.get("id").textValue(),
                         new PartitionKey(docToBeUpdated.get("mypk").textValue()),
-                        null);
+                        null).block();
             }
         }
     }
@@ -333,17 +404,17 @@ public class FullFidelityChangeFeedSample {
         }
     }
 
-    public static CosmosClient getCosmosClient() {
+    // public CosmosClient getCosmosClient() {
 
-        return new CosmosClientBuilder()
-                .endpoint(SampleConfigurations.HOST)
-                .key(SampleConfigurations.MASTER_KEY)
-                .contentResponseOnWriteEnabled(true)
-                .consistencyLevel(ConsistencyLevel.SESSION)
-                .buildClient();
-    }
+    //     return new CosmosClientBuilder()
+    //             .endpoint(SampleConfigurations.HOST)
+    //             .key(SampleConfigurations.MASTER_KEY)
+    //             .contentResponseOnWriteEnabled(true)
+    //             .consistencyLevel(ConsistencyLevel.SESSION)
+    //             .buildClient();
+    // }
 
-    public static CosmosAsyncClient getCosmosAsyncClient() {
+    public CosmosAsyncClient getCosmosAsyncClient() {
 
         return new CosmosClientBuilder()
                 .endpoint(SampleConfigurations.HOST)
@@ -358,14 +429,14 @@ public class FullFidelityChangeFeedSample {
         return client.getDatabase(databaseResponse.getProperties().getId());
     }
 
-    public static void deleteDatabase(CosmosDatabase createdDatabase2) {
-        createdDatabase2.delete();
+    public static void deleteDatabase(CosmosAsyncDatabase createdDatabase2) {
+        createdDatabase2.delete().block();
     }
 
-    public CosmosContainerProperties createNewCollection(CosmosClient client2, String databaseName,
+    public CosmosContainerProperties createNewCollection(CosmosAsyncClient clientAsync2, String databaseName,
             String collectionName) {
-        CosmosDatabaseResponse databaseResponse = client2.createDatabaseIfNotExists(databaseName);
-        CosmosDatabase database = client2.getDatabase(databaseResponse.getProperties().getId());
+        Mono<CosmosDatabaseResponse> databaseResponse = clientAsync2.createDatabaseIfNotExists(databaseName);
+        CosmosAsyncDatabase database = clientAsync2.getDatabase(databaseResponse.block().getProperties().getId());
 
         CosmosContainerProperties containerSettings = new CosmosContainerProperties(collectionName, "/mypk");
 
@@ -373,26 +444,45 @@ public class FullFidelityChangeFeedSample {
 
         ThroughputProperties throughputProperties = ThroughputProperties.createManualThroughput(10000);
 
-        CosmosContainerResponse containerResponse = database.createContainerIfNotExists(containerSettings,
+        Mono<CosmosContainerResponse> containerResponse = database.createContainerIfNotExists(containerSettings,
                 throughputProperties);
-        this.createdDatabase = client2.getDatabase(database.getId());
-        this.createdAsyncDatabase = clientAsync.getDatabase(createdDatabase.getId());
-        this.createdContainer = client2.getDatabase(DATABASE_NAME).getContainer(COLLECTION_NAME);
+        //this.createdDatabase = clientAsync2.getDatabase(database.getId());
+        this.createdAsyncDatabase = clientAsync.getDatabase(database.getId());
+        //this.createdContainer = clientAsync2.getDatabase(DATABASE_NAME).getContainer(COLLECTION_NAME);
         this.createdAsyncContainer = clientAsync.getDatabase(DATABASE_NAME).getContainer(COLLECTION_NAME);
-        return containerResponse.getProperties();
+        return containerResponse.block().getProperties();
     }
 
     private void createContainer(
             Function<CosmosContainerProperties, CosmosContainerProperties> onInitialization) {
 
-        CosmosContainerProperties containerProperties = createNewCollection(client, DATABASE_NAME, COLLECTION_NAME);
+        CosmosContainerProperties containerProperties = createNewCollection(clientAsync, DATABASE_NAME, COLLECTION_NAME);
 
         if (onInitialization != null) {
             containerProperties = onInitialization.apply(containerProperties);
         }
 
-        this.createdContainer = createdDatabase.getContainer(COLLECTION_NAME);
+        //this.createdContainer = createdDatabase.getContainer(COLLECTION_NAME);
         this.createdAsyncContainer = createdAsyncDatabase.getContainer(COLLECTION_NAME);
+    }
+
+    private void pressAnyKeyToContinue(String message) {
+        System.out.println(message);
+        try {
+            // noinspection ResultOfMethodCallIgnored
+            System.in.read();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
+    public static void clearScreen() {
+        System.out.print("\033[H\033[2J");
+        System.out.flush();
+    }
+    private void shutdown() {
+        clientAsync.close();
+        logger.info("Done.");
     }
 
 }

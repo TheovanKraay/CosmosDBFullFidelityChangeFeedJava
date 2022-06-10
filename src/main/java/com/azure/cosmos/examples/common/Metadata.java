@@ -8,11 +8,12 @@ public class Metadata {
     public Boolean getTimeToLiveExpired() {
         return timeToLiveExpired;
     }
-    public Item getPreviousImage() {
+    public ItemWithMetaData getPreviousImage() {
         return previousImage;
     }
     public String operationType;
     public Boolean timeToLiveExpired;
-    public Item previousImage;
+    public ItemWithMetaData previousImage;
+    public ItemWithMetaData previousImageLSN;
 
 }
