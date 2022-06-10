@@ -90,7 +90,6 @@ public class FullFidelityChangeFeedSample {
     }
 
     public void RunDemo(String changeFeedMode) throws Exception{
-        //client = this.getCosmosClient();
         clientAsync = this.getCosmosAsyncClient();
         logger.info("--> Run Change Feed Demo in "+changeFeedMode+" mode");            
         this.asyncChangeFeed_fromNow_fullFidelity_forFullRange(changeFeedMode);
