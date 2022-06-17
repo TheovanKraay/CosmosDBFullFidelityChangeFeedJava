@@ -62,7 +62,7 @@ com.azure.cosmos.examples.changefeed.SampleFullFidelityChangeFeed
 *Build and execute from command line without an IDE:* From top-level directory of repo:
 ```
 mvn clean package
-mvn exec:java -Dexec.mainClass="com.azure.cosmos.examples.changefeed.SampleFullFidelityChangeFeed" -DACCOUNT_HOST=your account hostname -DACCOUNT_KEY=your account master key
+mvn exec:java -Dexec.mainClass="com.azure.cosmos.examples.changefeed.FullFidelityChangeFeedSample" -DACCOUNT_HOST=your account hostname -DACCOUNT_KEY=your account master key
 ```
 
 ## Contributing
